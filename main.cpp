@@ -3,7 +3,7 @@
 #include "SDL2/SDL.h"
 #include <SDL2/SDL_ttf.h>
 
-#define WIDTH 800
+#define WIDTH 600
 #define HEIGHT 600
 #define ABS(X) (x<0 ? -x : x)
 #define MAX(A,B) (A>B ? A : B)
@@ -78,27 +78,27 @@ void line(uint32_t* buf, int buff_width, int buff_height, int x1, int y1, int x2
     }
 }
 
+bool equals3(char a, char b, char c) { return a == b && b == c; }
+
 struct Pos2d { int x=0; int y=0; };
 struct Game
 {
-    int scl = 15;
-    int score = 0;
-    int highScore = 0;
+    int turn = 0;	    // either 0, or 1 (for player 1 or 2).
     char board[3][3] = {
-	{' ',' ',' '},
-	{' ',' ',' '},
-	{' ',' ',' '}
+	{1,2,3},
+	{4,5,6},
+	{7,8,9}
     };
 
-    Game()
-    { 
-    }
-    ~Game()
+    char checkWon() const
     {
+	for(int y=0; y<3; ++y) if( equals3( board[y][0],board[y][1],board[y][2] ) ) return board[y][0];
+	for(int x=0; x<3; ++x) if( equals3( board[0][x],board[1][x],board[2][x] ) ) return board[0][x];
+	if( equals3(board[0][0],board[1][1],board[2][2]) ) return board[0][0];
+	if( equals3(board[0][2],board[1][1],board[2][0]) ) return board[0][2];
+	return 0;
     }
-    void update()
-    {
-    }
+
     void draw(uint32_t* p, int w, int h)
     {
 	int bx = w / 3;
@@ -155,6 +155,7 @@ int main()
     gDebugFont=TTF_OpenFont("Hack-Regular.ttf", kFontSize);
     if(!gDebugFont) {
 	printf("TTF_OpenFont: %s\n", TTF_GetError());
+	exit(3);
     }
 
     uint32_t* pixels = new uint32_t[WIDTH*HEIGHT];
@@ -174,12 +175,16 @@ int main()
 
 	uint32_t *p = pixels;
 	memset(p,0,WIDTH*HEIGHT*4);
-	gGame.update();
 	gGame.draw(p,WIDTH,HEIGHT);
 
 	SDL_UpdateTexture(texture, NULL, pixels, WIDTH * sizeof(Uint32));
 	SDL_RenderClear(gRenderer);
 	SDL_RenderCopy(gRenderer, texture, NULL, NULL);
+
+	if( gGame.checkWon() )
+	{
+	    ddraw(WIDTH/2-(5/2),HEIGHT/2,white,"%c WON!", gGame.checkWon());
+	}
 
 	// flip.
 	SDL_RenderPresent(gRenderer);
@@ -204,7 +209,9 @@ int main()
 		int blky = HEIGHT / 3;
 		int gridx = x / blkx;
 		int gridy = y / blky;
-		gGame.board[gridy][gridx] = 'x';
+		char c = gGame.turn ? 'x' : 'o';
+		gGame.board[gridy][gridx] = c;
+		gGame.turn = !gGame.turn;
 	    }
 	    prevTime = currentTime;
 	}
