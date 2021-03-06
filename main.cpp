@@ -5,9 +5,10 @@
 
 #define WIDTH 600
 #define HEIGHT 600
-#define ABS(X) (x<0 ? -x : x)
-#define MAX(A,B) (A>B ? A : B)
-#define RGBA(R,G,B,A) (uint32_t)((A&0xff)<<24)|((R&0xff)<<16)|((G&0xff)<<8)|((B&0xff))
+template<typename T> T ABS(T x) { return x < 0 ? -x : x; }
+template<typename T> T MAX(T a, T b) { return a > b ? a : b; }
+template<typename T> T MIN(T a, T b) { return a < b ? a : b; }
+uint32_t RGBA(int R,int G,int B,int A) { return (uint32_t)((A&0xff)<<24)|((R&0xff)<<16)|((G&0xff)<<8)|((B&0xff)); }
 #define NORM(RS,RE,VAL) ((float)VAL-RS)/((float)RE-RS)
 #define LERP(RS,RE,NVAL) ((float)RS+((float)(RE-RS)*NVAL))
 #define CLAMP(X,Y,N) ((N)<(X) ? (X) : (N) > (Y) ? (Y) : (N))
@@ -83,20 +84,101 @@ bool equals3(char a, char b, char c) { return a == b && b == c; }
 struct Pos2d { int x=0; int y=0; };
 struct Game
 {
-    int turn = 0;	    // either 0, or 1 (for player 1 or 2).
+    enum { human = 'o', ai = 'x' };
+    int currentPlayer = ai;
     char board[3][3] = {
-	{1,2,3},
-	{4,5,6},
-	{7,8,9}
+	{' ',' ',' '},
+	{' ',' ',' '},
+	{' ',' ',' '}
     };
 
-    char checkWon() const
+    // x goes first.
+    
+    // 'x', 'o', ' ' no win,, 0=tie
+    char checkWinner() const
     {
 	for(int y=0; y<3; ++y) if( equals3( board[y][0],board[y][1],board[y][2] ) ) return board[y][0];
 	for(int x=0; x<3; ++x) if( equals3( board[0][x],board[1][x],board[2][x] ) ) return board[0][x];
 	if( equals3(board[0][0],board[1][1],board[2][2]) ) return board[0][0];
 	if( equals3(board[0][2],board[1][1],board[2][0]) ) return board[0][2];
+
+	for(int x=0; x<3; x++){
+	    for(int y=0; y<3; y++) {
+		if(board[y][x] == ' ' ) return ' ';
+	    }
+	}
 	return 0;
+    }
+    int score(char c)
+    {
+	if(c == human ) return -1;
+	else if( c == ai ) return 1;
+	return 0;
+    }
+
+    int minimax(bool bIsMaximizingPlayer)
+    {
+	char winner = checkWinner();
+	if( winner != ' ' ) 
+	    return score(winner);
+	
+	if( bIsMaximizingPlayer ) {
+	    int bestscore = -1000000;
+	    for(int y=0; y<3;++y) {
+		for(int x=0; x<3; x++) {
+		    if( board[y][x] == ' ' ) {
+			board[y][x] = human;
+			int score = minimax( false );
+			bestscore = MAX(score,bestscore); 
+			board[y][x] = ' ';
+		    }
+		}
+	    }
+	    return bestscore;
+	}
+	else 
+	{
+	    int bestscore = 1000000;
+	    for(int y=0; y<3;++y) {
+		for(int x=0; x<3; x++) {
+		    if( board[y][x] == ' ' ) {
+			board[y][x] = ai;
+			int score = minimax( true );
+			bestscore = MIN(score,bestscore); 
+			board[y][x] = ' ';
+		    }
+		}
+	    }
+	    return bestscore;
+	}
+    }
+
+    void bestMove()
+    {
+	int bestscore = -100000;
+	int bestX = 0, bestY = 0;
+	for(int y=0; y<3;++y) {
+	    for(int x=0; x<3; ++x) {
+		if(board[y][x] == ' ') {
+		    board[y][x] = ai;
+		    int score = minimax(false);
+		    if(score > bestscore) {
+			bestscore = score;
+			bestX = x;
+			bestY = y;
+		    }
+		    board[y][x] = ' ';
+		}
+	    }
+	}
+	board[bestY][bestX] = ai;
+    }
+    Game()
+    {
+	//bestMove();
+	int x = rand() % 3;
+	int y = rand() % 3;
+	board[y][x] = ai;
     }
 
     void draw(uint32_t* p, int w, int h)
@@ -113,20 +195,21 @@ struct Game
 	for(int y = 0; y < 3; ++y) {
 	    for(int x=0; x < 3; ++x) {
 		if(board[y][x]=='o')
-		    elipse(p,w,h,(bx*x)+(bx/2),(by*y)+(by/2), bx,by,RGBA(255,255,255,255));
+		    elipse(p,w,h,(bx*x)+(bx/2),(by*y)+(by/2), bx,by,RGBA(0,255,0,255));
 		else if(board[y][x]=='x')
 		{
-		    line(p,w,h,	bx*x,	     by*y, bx*(x+1),	by*(y+1),     RGBA(255,255,255,255));
-		    line(p,w,h,	bx*(x+1),    by*y, bx*x,	by*(y+1),     RGBA(255,255,255,255));
+		    line(p,w,h,	bx*x,	     by*y, bx*(x+1),	by*(y+1),     RGBA(255,0,255,255));
+		    line(p,w,h,	bx*(x+1),    by*y, bx*x,	by*(y+1),     RGBA(255,0,255,255));
 		}
 	    }
 	}
     }
-}gGame;
+};
 
 int main()
 {
     srand (time(NULL));
+    Game gGame;
     if(SDL_Init(SDL_INIT_VIDEO) != 0) {
 	fprintf(stderr, "Could not init SDL: %s\n", SDL_GetError());
 	return 1;
@@ -181,9 +264,13 @@ int main()
 	SDL_RenderClear(gRenderer);
 	SDL_RenderCopy(gRenderer, texture, NULL, NULL);
 
-	if( gGame.checkWon() )
+	char winner = gGame.checkWinner();
+	if( winner != ' ' )
 	{
-	    ddraw(WIDTH/2-(5/2),HEIGHT/2,white,"%c WON!", gGame.checkWon());
+	    if( winner == 0)
+	       	ddraw(WIDTH/2-(5/2),HEIGHT/2,white,"TIE!");
+	    else 
+	       	ddraw(WIDTH/2-(5/2),HEIGHT/2,white,"%c WON!", winner);
 	}
 
 	// flip.
@@ -209,9 +296,11 @@ int main()
 		int blky = HEIGHT / 3;
 		int gridx = x / blkx;
 		int gridy = y / blky;
-		char c = gGame.turn ? 'x' : 'o';
-		gGame.board[gridy][gridx] = c;
-		gGame.turn = !gGame.turn;
+		if( gGame.board[gridy][gridx] == ' ' ) {
+		    gGame.board[gridy][gridx] = Game::human;
+		    gGame.currentPlayer = Game::ai;
+		    gGame.bestMove();
+		}
 	    }
 	    prevTime = currentTime;
 	}
